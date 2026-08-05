@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bilancio — CC / CD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#161B22; --ink-2:#1F2731;
+    --paper:#EFEAE0; --paper-dim:#E3DDCE; --paper-line:#D4CDBC;
+    --teal:#3F7C6B; --teal-dim:#DCE9E3;
+    --brass:#B08D57; --brass-dim:#EEE3D0;
+    --brick:#B5462F; --brick-dim:#F3DCD5;
+    --ink-soft:#6A6355; --text-dark:#20241F;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',sans-serif;background:var(--ink);color:var(--paper);}
+  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 60px;}
+  .masthead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #2C3642;}
+  .masthead h1{font-family:'Fraunces',serif;font-weight:500;font-size:26px;margin:0;color:var(--paper);letter-spacing:-0.01em;}
+  .masthead .right{display:flex;align-items:center;gap:12px;}
+  .masthead .date{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8A93A0;text-transform:capitalize;}
+  .gear{background:none;border:1px solid #2C3642;color:#8A93A0;border-radius:6px;width:30px;height:30px;cursor:pointer;font-size:14px;}
+  .tabs{display:flex;gap:4px;margin-bottom:20px;}
+  .tab-btn{flex:1;padding:10px;background:none;border:1px solid #2C3642;border-radius:6px;color:#8A93A0;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;}
+  .tab-btn.active{background:var(--paper);color:var(--text-dark);border-color:var(--paper);}
+  .card{background:var(--paper);border-radius:10px;padding:20px;margin-bottom:14px;}
+  .card h2{font-family:'Fraunces',serif;font-weight:500;font-size:16px;margin:0 0 14px;color:var(--text-dark);}
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .stat{background:var(--paper-dim);border-radius:8px;padding:14px 16px;}
+  .stat.teal{background:var(--teal-dim);} .stat.brass{background:var(--brass-dim);}
+  .stat.free{background:var(--ink-2);}
+  .stat.free .stat-label,.stat.free .stat-val{color:var(--paper);}
+  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);margin-bottom:6px;}
+  .stat.teal .stat-label{color:var(--teal);} .stat.brass .stat-label{color:var(--brass);}
+  .stat-val{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--text-dark);}
+  .stat-sub{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  .alert{display:flex;gap:10px;background:var(--brick-dim);border-left:3px solid var(--brick);border-radius:0 8px 8px 0;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#5E1E12;}
+  .alert b{display:block;margin-bottom:2px;}
+  .banner{padding:12px 16px;border-radius:8px;margin-bottom:14px;font-size:13px;}
+  .banner.err{background:var(--brick-dim);color:#5E1E12;}
+  .banner.ok{background:var(--teal-dim);color:#1F4C3F;}
+  .strip{position:relative;height:36px;background:var(--paper-dim);border-radius:6px;margin:10px 0 26px;}
+  .strip .today{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--text-dark);}
+  .strip .today::after{content:attr(data-label);position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-dark);white-space:nowrap;}
+  .strip .dot{position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;}
+  .strip .dot.mensile{background:var(--teal);} .strip .dot.periodico{background:var(--brass);}
+  .list-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--paper-line);font-size:13px;}
+  .list-item:last-child{border-bottom:none;}
+  .li-left{display:flex;flex-direction:column;}
+  .li-name{color:var(--text-dark);font-weight:500;} .li-when{color:var(--ink-soft);font-size:11px;font-family:'IBM Plex Mono',monospace;}
+  .li-amt{font-family:'IBM Plex Mono',monospace;color:var(--text-dark);font-weight:500;}
+  .badge{font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px;font-weight:500;}
+  .badge.teal{background:var(--teal-dim);color:var(--teal);} .badge.brass{background:var(--brass-dim);color:#8A6A38;}
+  .entry-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;}
+  input,select{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:8px 10px;border:1px solid var(--paper-line);border-radius:6px;background:#fff;color:var(--text-dark);}
+  input[type=text],input[type=password]{font-family:'Inter',sans-serif;}
+  label{display:block;font-size:11px;color:var(--ink-soft);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.03em;}
+  button.action{font-family:'Inter',sans-serif;font-weight:500;font-size:13px;padding:8px 16px;border-radius:6px;border:none;background:var(--text-dark);color:var(--paper);cursor:pointer;}
+  button.action.small{padding:6px 10px;font-size:12px;}
+  button.action.ghost{background:none;border:1px solid var(--paper-line);color:var(--text-dark);}
+  button.action:disabled{opacity:0.5;cursor:default;}
+  .conf-section{margin-bottom:22px;}
+  .conf-row{display:grid;grid-template-columns:1.6fr 0.9fr 0.7fr 0.9fr 32px;gap:8px;align-items:center;margin-bottom:8px;}
+  .conf-row.mensile{grid-template-columns:1.6fr 0.9fr 1.1fr 32px;}
+  .conf-row.conf-head{margin-bottom:4px;} .conf-row.conf-head label{margin:0;}
+  .add-row{display:grid;grid-template-columns:1.6fr 0.9fr 0.7fr 0.9fr 32px;gap:8px;align-items:end;padding-top:10px;border-top:1px dashed var(--paper-line);}
+  .add-row.mensile{grid-template-columns:1.6fr 0.9fr 1.1fr 32px;}
+  .hint{font-size:12px;color:var(--ink-soft);line-height:1.5;margin:0 0 14px;}
+  .empty{font-size:13px;color:var(--ink-soft);padding:8px 0;}
+  #tab-config,#tab-oggi{display:none;}
+  #setup{max-width:480px;margin:60px auto;}
+  #setup .card{background:var(--paper);}
+  #setup input{width:100%;margin-bottom:12px;}
+  .save-status{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8A93A0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="setup" style="display:none;">
+    <div class="card">
+      <h2>Collega il repository GitHub</h2>
+      <p class="hint">Questi dati restano solo nel tuo browser (mai inviati a Claude o altrove) e servono a leggere e scrivere i file config.json / entrate.json nel tuo repo privato.</p>
+      <label>Proprietario repo</label>
+      <input type="text" id="setup-owner" placeholder="AdolfoBrusco">
+      <label>Nome repo</label>
+      <input type="text" id="setup-repo" placeholder="moneyRepo">
+      <label>Branch</label>
+      <input type="text" id="setup-branch" placeholder="main" value="main">
+      <label>Personal access token (fine-grained, permesso Contents: read/write su questo repo)</label>
+      <input type="password" id="setup-token" placeholder="github_pat_...">
+      <button class="action" onclick="salvaSetup()">Connetti</button>
+      <p class="hint" id="setup-err" style="color:#B5462F;"></p>
+    </div>
+  </div>
+
+  <div id="app" style="display:none;">
+
+    <div class="masthead">
+      <h1>Bilancio</h1>
+      <div class="right">
+        <span class="date" id="oggi-label"></span>
+        <button class="gear" onclick="toggleSettings()" title="Impostazioni">⚙</button>
+      </div>
+    </div>
+
+    <div id="settings-panel" class="card" style="display:none;">
+      <h2>Connessione GitHub</h2>
+      <div class="entry-form">
+        <div><label>Proprietario</label><input type="text" id="s-owner"></div>
+        <div><label>Repo</label><input type="text" id="s-repo"></div>
+        <div><label>Branch</label><input type="text" id="s-branch"></div>
+      </div>
+      <div style="margin-top:12px;"><label>Token</label><input type="password" id="s-token" style="width:100%;"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <button class="action small" onclick="salvaSetup(true)">Salva</button>
+        <button class="action small ghost" onclick="scollega()">Scollega</button>
+      </div>
+    </div>
+
+    <div id="banner-area"></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="oggi">Oggi</button>
+      <button class="tab-btn" data-tab="config">Configura</button>
+    </div>
+
+    <div id="tab-oggi" style="display:block;">
+      <div id="alerts"></div>
+
+      <div class="card">
+        <h2>Stato del piano</h2>
+        <div class="stat-row">
+          <div class="stat teal">
+            <div class="stat-label">Minimo su CC</div>
+            <div class="stat-val" id="cc-min">—</div>
+            <div class="stat-sub">riservato per addebiti imminenti</div>
+          </div>
+          <div class="stat brass">
+            <div class="stat-label">Minimo su CD</div>
+            <div class="stat-val" id="cd-min">—</div>
+            <div class="stat-sub">accantonamento maturato</div>
+          </div>
+        </div>
+        <div class="stat free">
+          <div class="stat-label">Totale che dovrebbe esserci sul CC</div>
+          <div class="stat-val" id="totale-cc">—</div>
+          <div class="stat-sub">minimo riservato + budget libero residuo</div>
+        </div>
+        <div class="stat free" style="margin-top:12px;">
+          <div class="stat-label">Budget libero — residuo</div>
+          <div class="stat-val" id="spendibile">—</div>
+          <div class="stat-sub" id="spendibile-sub"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Spese variabili di questo ciclo</h2>
+        <p class="hint">Ogni spesa che registri qui erode il budget libero residuo mostrato sopra. Si azzerano da sole al prossimo stipendio.</p>
+        <div class="entry-form">
+          <div><label>Cosa</label><input type="text" id="in-mov-desc" placeholder="es. Jeans, pizza, Amazon" style="width:180px;"></div>
+          <div><label>Importo €</label><input type="number" id="in-mov-importo" step="0.01" placeholder="20"></div>
+          <button class="action" id="btn-mov" onclick="registraMovimento()">Aggiungi</button>
+        </div>
+        <div id="mov-list" style="margin-top:14px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Registra accredito stipendio</h2>
+        <p class="hint">Quando arriva lo stipendio sul CC, segnalo qui: viene scritto direttamente su entrate.json nel repo.</p>
+        <div class="entry-form">
+          <div><label>Data</label><input type="date" id="in-stip-data"></div>
+          <div><label>Importo €</label><input type="number" id="in-stip-importo" placeholder="900" step="0.01"></div>
+          <button class="action" id="btn-registra" onclick="registraStipendio()">Registra</button>
+        </div>
+        <p class="hint" id="ultimo-stipendio" style="margin-top:10px;"></p>
+      </div>
+
+      <div class="card">
+        <h2>Report mensile</h2>
+        <p class="hint">Scarica un CSV delle spese variabili registrate in un mese solare, apribile in Excel/Fogli Google.</p>
+        <div class="entry-form">
+          <div><label>Mese</label><input type="month" id="in-report-mese"></div>
+          <button class="action" onclick="scaricaReport()">Scarica CSV</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Questo mese</h2>
+        <div class="strip" id="strip"></div>
+        <div id="prossimi"></div>
+      </div>
+    </div>
+
+    <div id="tab-config">
+      <div class="card">
+        <h2>Spese mensili <span style="font-weight:400;color:var(--ink-soft);font-size:12px;">(addebito ogni mese sul CC)</span></h2>
+        <div class="conf-row mensile conf-head"><label>Nome</label><label>Importo €</label><label>Giorno addebito</label><span></span></div>
+        <div id="conf-mensili"></div>
+        <div class="add-row mensile">
+          <div><label>Nome</label><input type="text" id="new-mensile-nome" placeholder="es. Netflix"></div>
+          <div><label>Importo €</label><input type="number" id="new-mensile-importo" step="0.01"></div>
+          <div><label>Giorno addebito</label><input type="number" id="new-mensile-giorno" min="1" max="31"></div>
+          <button class="action small" onclick="aggiungiSpesa('mensili')">+</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Spese trimestrali <span style="font-weight:400;color:var(--ink-soft);font-size:12px;">(ogni 3 mesi, richiedono giroconto da CD)</span></h2>
+        <div class="conf-row conf-head"><label>Nome</label><label>Importo €</label><label>Mese primo add.</label><label>Giorno</label><span></span></div>
+        <div id="conf-trimestrali"></div>
+        <div class="add-row">
+          <div><label>Nome</label><input type="text" id="new-trimestrale-nome" placeholder="es. Genertel"></div>
+          <div><label>Importo €</label><input type="number" id="new-trimestrale-importo" step="0.01"></div>
+          <div><label>Mese primo add.</label><input type="number" id="new-trimestrale-mese" min="1" max="12" placeholder="1-12"></div>
+          <div><label>Giorno</label><input type="number" id="new-trimestrale-giorno" min="1" max="31"></div>
+          <button class="action small" onclick="aggiungiSpesa('trimestrali')">+</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Spese annuali <span style="font-weight:400;color:var(--ink-soft);font-size:12px;">(una volta all'anno, richiedono giroconto da CD)</span></h2>
+        <div class="conf-row conf-head"><label>Nome</label><label>Importo €</label><label>Mese</label><label>Giorno</label><span></span></div>
+        <div id="conf-annuali"></div>
+        <div class="add-row">
+          <div><label>Nome</label><input type="text" id="new-annuale-nome" placeholder="es. Bollo moto"></div>
+          <div><label>Importo €</label><input type="number" id="new-annuale-importo" step="0.01"></div>
+          <div><label>Mese</label><input type="number" id="new-annuale-mese" min="1" max="12" placeholder="1-12"></div>
+          <div><label>Giorno</label><input type="number" id="new-annuale-giorno" min="1" max="31"></div>
+          <button class="action small" onclick="aggiungiSpesa('annuali')">+</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Impostazioni giroconto CD → CC</h2>
+        <p class="hint">Quanti giorni prima di un addebito trimestrale/annuale vuoi essere avvisato di spostare i soldi.</p>
+        <div class="entry-form">
+          <div><label>Giorni di preavviso</label><input type="number" id="preavviso" min="1" max="15" style="width:80px;"></div>
+          <button class="action small" onclick="salvaPreavviso()">Salva</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+let CONFIG = null, ENTRATE = [], MOVIMENTI = [];
+let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null;
+let GH = { owner:'', repo:'', branch:'main', token:'' };
+const OGGI = new Date(); OGGI.setHours(0,0,0,0);
+
+function fmt(n){ return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Math.round(n*100)/100); }
+function uid(){ return 'x'+Math.random().toString(36).slice(2,9); }
+function addMonths(date,n){ const d=new Date(date); d.setMonth(d.getMonth()+n); return d; }
+function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function cycleDates(mese, giorno, intervalMonths, today){
+  let base = new Date(today.getFullYear(), (mese-1), giorno);
+  let guard=0;
+  while(base > today && guard<60){ base = addMonths(base, -intervalMonths); guard++; }
+  guard=0;
+  while(addMonths(base, intervalMonths) <= today && guard<60){ base = addMonths(base, intervalMonths); guard++; }
+  return { prev: base, next: addMonths(base, intervalMonths) };
+}
+function isAttiva(spesa){ if(!spesa.fine) return true; return OGGI <= parseISO(spesa.fine); }
+
+function banner(msg, type){
+  const el = document.getElementById('banner-area');
+  el.innerHTML = `<div class="banner ${type}">${msg}</div>`;
+  if(type==='ok') setTimeout(()=>{ if(el.firstChild && el.firstChild.textContent===msg) el.innerHTML=''; }, 3000);
+}
+
+function ghHeaders(){
+  return { 'Authorization': `Bearer ${GH.token}`, 'Accept':'application/vnd.github+json' };
+}
+function ghUrl(path){
+  return `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}?ref=${GH.branch}`;
+}
+async function ghGet(path){
+  const res = await fetch(ghUrl(path)+`&_=${Date.now()}`, { headers: ghHeaders(), cache: 'no-store' });
+  if(!res.ok){ const t = await res.text(); throw new Error(`GET ${path}: ${res.status} ${t}`); }
+  const data = await res.json();
+  const content = decodeURIComponent(escape(atob(data.content.replace(/\n/g,''))));
+  return { json: JSON.parse(content), sha: data.sha };
+}
+async function ghPut(path, obj, sha, message){
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
+  const body = { message, content, branch: GH.branch };
+  if(sha) body.sha = sha;
+  const res = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`, {
+    method:'PUT',
+    headers: { ...ghHeaders(), 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error(`PUT ${path}: ${res.status} ${JSON.stringify(data)}`);
+  return data.content.sha;
+}
+
+function loadLocalGH(){
+  try{
+    const raw = localStorage.getItem('bilancio-gh');
+    if(!raw) return false;
+    GH = JSON.parse(raw);
+    return !!(GH.owner && GH.repo && GH.token);
+  }catch(e){ return false; }
+}
+function saveLocalGH(){
+  localStorage.setItem('bilancio-gh', JSON.stringify(GH));
+}
+
+async function salvaSetup(fromSettings){
+  const prefix = fromSettings ? 's-' : 'setup-';
+  GH = {
+    owner: document.getElementById(prefix+'owner').value.trim(),
+    repo: document.getElementById(prefix+'repo').value.trim(),
+    branch: (document.getElementById(prefix+'branch').value.trim() || 'main'),
+    token: document.getElementById(prefix+'token').value.trim() || GH.token
+  };
+  if(!GH.owner || !GH.repo || !GH.token){
+    if(!fromSettings) document.getElementById('setup-err').textContent = 'Compila tutti i campi.';
+    return;
+  }
+  saveLocalGH();
+  document.getElementById('setup').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('settings-panel').style.display='none';
+  await avvia();
+}
+function scollega(){
+  localStorage.removeItem('bilancio-gh');
+  location.reload();
+}
+function toggleSettings(){
+  const p = document.getElementById('settings-panel');
+  const showing = p.style.display==='block';
+  if(!showing){
+    document.getElementById('s-owner').value = GH.owner;
+    document.getElementById('s-repo').value = GH.repo;
+    document.getElementById('s-branch').value = GH.branch;
+    document.getElementById('s-token').value = GH.token;
+  }
+  p.style.display = showing ? 'none':'block';
+}
+
+async function avvia(){
+  document.getElementById('oggi-label').textContent = OGGI.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  try{
+    const c = await ghGet('config.json');
+    CONFIG = c.json; CONFIG_SHA = c.sha;
+    const e = await ghGet('entrate.json');
+    ENTRATE = e.json; ENTRATE_SHA = e.sha;
+    let m;
+    try{
+      m = await ghGet('movimenti.json');
+    }catch(errMov){
+      m = { json: [], sha: null };
+    }
+    MOVIMENTI = m.json; MOVIMENTI_SHA = m.sha;
+    ['mensili','trimestrali','annuali'].forEach(cat=>{
+      CONFIG[cat].forEach(sp=>{ if(!sp.id) sp.id = uid(); });
+    });
+    render();
+  }catch(err){
+    banner('Errore di connessione a GitHub: '+err.message+'. Controlla token e nome repo nelle impostazioni.', 'err');
+  }
+}
+
+function render(){ renderDashboard(); renderConfig(); }
+
+function renderDashboard(){
+  const mensiliAttivi = CONFIG.mensili.filter(isAttiva);
+  const periodici = [...CONFIG.trimestrali.map(x=>({...x,tipo:'trimestrale',interval:3})), ...CONFIG.annuali.map(x=>({...x,tipo:'annuale',interval:12}))];
+
+  const ultima = ENTRATE.slice().sort((a,b)=>parseISO(b.data)-parseISO(a.data))[0];
+  const cicloInizio = ultima ? parseISO(ultima.data) : OGGI;
+  const cicloFine = addMonths(cicloInizio, 1);
+
+  let ccMin = 0;
+  mensiliAttivi.forEach(sp=>{
+    const {next} = cycleDates(OGGI.getMonth()+1, sp.giorno, 1, OGGI);
+    if(next >= OGGI && next < cicloFine){
+      ccMin += sp.importo;
+    }
+  });
+
+  const alerts = [];
+  let cdMin = 0;
+  periodici.forEach(sp=>{
+    const {prev,next} = cycleDates(sp.mese, sp.giorno, sp.interval, OGGI);
+    const totCycle = (next-prev)/86400000;
+    const trascorsi = (OGGI-prev)/86400000;
+    cdMin += sp.importo * Math.min(1, Math.max(0, trascorsi/totCycle));
+    const giorniAllaScadenza = Math.round((next-OGGI)/86400000);
+    if(giorniAllaScadenza <= CONFIG.preavviso && giorniAllaScadenza >= 0){
+      ccMin += sp.importo;
+      alerts.push({nome:sp.nome, importo:sp.importo, giorni:giorniAllaScadenza, data:next});
+    }
+  });
+
+  document.getElementById('cc-min').textContent = fmt(ccMin);
+  document.getElementById('cd-min').textContent = fmt(cdMin);
+
+  const ccSubEl = document.querySelector('.stat.teal .stat-sub');
+  if(ccSubEl){
+    ccSubEl.textContent = ultima
+      ? `riservato fino al prossimo stipendio atteso (${cicloFine.toLocaleDateString('it-IT',{day:'numeric',month:'long'})})`
+      : `riservato per addebiti imminenti — registra uno stipendio per un calcolo preciso sul ciclo`;
+  }
+
+  document.getElementById('alerts').innerHTML = alerts.map(a=>`
+    <div class="alert"><div><b>Sposta ${fmt(a.importo)} da CD a CC</b>
+    ${a.nome} viene addebitato tra ${a.giorni===0?'oggi':a.giorni+' giorni'} (${a.data.toLocaleDateString('it-IT',{day:'numeric',month:'long'})}).</div></div>`).join('');
+
+  const totMensili = mensiliAttivi.reduce((s,x)=>s+x.importo,0);
+  const quotaCD = periodici.reduce((s,x)=>s+ x.importo/x.interval,0);
+
+  const spendibileEl = document.getElementById('spendibile');
+  const spendibileSub = document.getElementById('spendibile-sub');
+  const ultimoStipEl = document.getElementById('ultimo-stipendio');
+  const totaleCcEl = document.getElementById('totale-cc');
+
+  if(ultima){
+    const budgetIniziale = ultima.importo - totMensili - quotaCD;
+    const movimentiCiclo = MOVIMENTI.filter(m => parseISO(m.data) >= cicloInizio);
+    const speso = movimentiCiclo.reduce((s,m)=>s+m.importo,0);
+    const residuo = budgetIniziale - speso;
+    spendibileEl.textContent = fmt(residuo);
+    spendibileSub.textContent = `budget iniziale ${fmt(budgetIniziale)}, già speso ${fmt(speso)} da quando è arrivato lo stipendio`;
+    ultimoStipEl.textContent = `Ultimo accredito registrato: ${fmt(ultima.importo)} il ${parseISO(ultima.data).toLocaleDateString('it-IT')}.`;
+    renderMovimenti(movimentiCiclo);
+    totaleCcEl.textContent = fmt(ccMin + residuo);
+  } else {
+    spendibileEl.textContent = '—';
+    spendibileSub.textContent = 'registra il primo accredito per calcolarlo';
+    ultimoStipEl.textContent = 'Nessun accredito ancora registrato.';
+    renderMovimenti([]);
+    totaleCcEl.textContent = '—';
+  }
+
+  const oggiIso = OGGI.toISOString().slice(0,10);
+  const dataInput = document.getElementById('in-stip-data');
+  if(!dataInput.value) dataInput.value = oggiIso;
+
+  const reportMese = document.getElementById('in-report-mese');
+  if(reportMese && !reportMese.value){
+    reportMese.value = `${OGGI.getFullYear()}-${String(OGGI.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  renderStripAndProssimi(mensiliAttivi, periodici);
+}
+
+function renderMovimenti(movimenti){
+  const el = document.getElementById('mov-list');
+  if(!el) return;
+  if(!movimenti.length){
+    el.innerHTML = '<p class="empty">Nessuna spesa registrata in questo ciclo.</p>';
+    return;
+  }
+  const ordinati = movimenti.slice().sort((a,b)=>parseISO(b.data)-parseISO(a.data));
+  el.innerHTML = ordinati.map(m=>`
+    <div class="list-item">
+      <div class="li-left">
+        <span class="li-name">${m.desc}</span>
+        <span class="li-when">${parseISO(m.data).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="li-amt">${fmt(m.importo)}</div>
+        <button class="action ghost small" onclick="rimuoviMovimento('${m.id}')">×</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderStripAndProssimi(mensiliAttivi, periodici){
+  const daysInMonth = new Date(OGGI.getFullYear(), OGGI.getMonth()+1, 0).getDate();
+  const strip = document.getElementById('strip');
+  strip.innerHTML = `<div class="today" style="left:${(OGGI.getDate()/daysInMonth*100)}%" data-label="oggi"></div>`;
+
+  mensiliAttivi.forEach(sp=>{
+    if(sp.giorno<=daysInMonth) strip.innerHTML += `<div class="dot mensile" style="left:${(sp.giorno/daysInMonth*100)}%" title="${sp.nome} — ${fmt(sp.importo)}"></div>`;
+  });
+
+  const prossimi = [];
+  const finestra = new Date(OGGI); finestra.setDate(finestra.getDate()+30);
+
+  mensiliAttivi.forEach(sp=>{
+    const {next} = cycleDates(OGGI.getMonth()+1, sp.giorno, 1, OGGI);
+    if(next<=finestra) prossimi.push({nome:sp.nome, importo:sp.importo, data:next, tipo:'mensile'});
+  });
+  periodici.forEach(sp=>{
+    const {next} = cycleDates(sp.mese, sp.giorno, sp.interval, OGGI);
+    if(next<=finestra){
+      prossimi.push({nome:sp.nome, importo:sp.importo, data:next, tipo:sp.tipo});
+      if(next.getMonth()===OGGI.getMonth() && next.getFullYear()===OGGI.getFullYear() && next.getDate()<=daysInMonth){
+        strip.innerHTML += `<div class="dot periodico" style="left:${(next.getDate()/daysInMonth*100)}%" title="${sp.nome} — ${fmt(sp.importo)}"></div>`;
+      }
+    }
+  });
+  prossimi.sort((a,b)=>a.data-b.data);
+
+  const prossimiEl = document.getElementById('prossimi');
+  if(prossimi.length===0){ prossimiEl.innerHTML = '<p class="empty">Nessun addebito nei prossimi 30 giorni.</p>'; return; }
+  prossimiEl.innerHTML = prossimi.map(p=>`
+    <div class="list-item">
+      <div class="li-left">
+        <span class="li-name">${p.nome}${p.tipo!=='mensile'?`<span class="badge brass">CD</span>`:`<span class="badge teal">CC</span>`}</span>
+        <span class="li-when">${p.data.toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>
+      </div>
+      <div class="li-amt">${fmt(p.importo)}</div>
+    </div>`).join('');
+}
+
+function renderConfig(){
+  document.getElementById('preavviso').value = CONFIG.preavviso;
+
+  const mEl = document.getElementById('conf-mensili');
+  mEl.innerHTML = CONFIG.mensili.length ? CONFIG.mensili.map(sp=>`
+    <div class="conf-row mensile">
+      <input type="text" value="${sp.nome}" onchange="editSpesa('mensili','${sp.id}','nome',this.value)">
+      <input type="number" step="0.01" value="${sp.importo}" onchange="editSpesa('mensili','${sp.id}','importo',parseFloat(this.value))">
+      <input type="number" min="1" max="31" value="${sp.giorno}" onchange="editSpesa('mensili','${sp.id}','giorno',parseInt(this.value))">
+      <button class="action ghost small" onclick="rimuoviSpesa('mensili','${sp.id}')">×</button>
+    </div>`).join('') : '<p class="empty">Nessuna spesa mensile configurata.</p>';
+
+  const tEl = document.getElementById('conf-trimestrali');
+  tEl.innerHTML = CONFIG.trimestrali.length ? CONFIG.trimestrali.map(sp=>`
+    <div class="conf-row">
+      <input type="text" value="${sp.nome}" onchange="editSpesa('trimestrali','${sp.id}','nome',this.value)">
+      <input type="number" step="0.01" value="${sp.importo}" onchange="editSpesa('trimestrali','${sp.id}','importo',parseFloat(this.value))">
+      <input type="number" min="1" max="12" value="${sp.mese}" onchange="editSpesa('trimestrali','${sp.id}','mese',parseInt(this.value))">
+      <input type="number" min="1" max="31" value="${sp.giorno}" onchange="editSpesa('trimestrali','${sp.id}','giorno',parseInt(this.value))">
+      <button class="action ghost small" onclick="rimuoviSpesa('trimestrali','${sp.id}')">×</button>
+    </div>`).join('') : '<p class="empty">Nessuna spesa trimestrale configurata.</p>';
+
+  const aEl = document.getElementById('conf-annuali');
+  aEl.innerHTML = CONFIG.annuali.length ? CONFIG.annuali.map(sp=>`
+    <div class="conf-row">
+      <input type="text" value="${sp.nome}" onchange="editSpesa('annuali','${sp.id}','nome',this.value)">
+      <input type="number" step="0.01" value="${sp.importo}" onchange="editSpesa('annuali','${sp.id}','importo',parseFloat(this.value))">
+      <input type="number" min="1" max="12" value="${sp.mese}" onchange="editSpesa('annuali','${sp.id}','mese',parseInt(this.value))">
+      <input type="number" min="1" max="31" value="${sp.giorno}" onchange="editSpesa('annuali','${sp.id}','giorno',parseInt(this.value))">
+      <button class="action ghost small" onclick="rimuoviSpesa('annuali','${sp.id}')">×</button>
+    </div>`).join('') : '<p class="empty">Nessuna spesa annuale configurata.</p>';
+}
+
+function ensureIds(){
+  ['mensili','trimestrali','annuali'].forEach(cat=>{
+    CONFIG[cat].forEach(sp=>{ if(!sp.id) sp.id = uid(); });
+  });
+}
+
+let saveLock = Promise.resolve();
+function withSaveLock(task){
+  const result = saveLock.then(task, task);
+  saveLock = result.catch(()=>{});
+  return result;
+}
+
+function attesa(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+async function ghPutSafe(path, obj, message, maxRetries){
+  maxRetries = maxRetries || 4;
+  let lastErr;
+  for(let i=0;i<maxRetries;i++){
+    try{
+      let sha = null;
+      try{ const fresh = await ghGet(path); sha = fresh.sha; }catch(e404){ sha = null; }
+      return await ghPut(path, obj, sha, message);
+    }catch(err){
+      lastErr = err;
+      if(!String(err.message).includes('409')) throw err;
+      await attesa(300 + i*300);
+    }
+  }
+  throw lastErr;
+}
+
+function saveConfig(){
+  return withSaveLock(async ()=>{
+    try{
+      banner('Salvataggio su GitHub…', 'ok');
+      CONFIG_SHA = await ghPutSafe('config.json', CONFIG, 'Aggiorna config.json da bilancio.html');
+      render();
+      banner('Config salvato.', 'ok');
+    }catch(err){
+      banner('Errore nel salvataggio: '+err.message, 'err');
+    }
+  });
+}
+function saveEntrate(){
+  return withSaveLock(async ()=>{
+    try{
+      ENTRATE_SHA = await ghPutSafe('entrate.json', ENTRATE, 'Aggiungi accredito stipendio');
+      render();
+      banner('Stipendio registrato.', 'ok');
+    }catch(err){
+      banner('Errore nel salvataggio: '+err.message, 'err');
+    }
+  });
+}
+function saveMovimenti(){
+  return withSaveLock(async ()=>{
+    try{
+      MOVIMENTI_SHA = await ghPutSafe('movimenti.json', MOVIMENTI, 'Aggiorna spese variabili');
+      render();
+      banner('Spesa registrata.', 'ok');
+    }catch(err){
+      banner('Errore nel salvataggio: '+err.message, 'err');
+    }
+  });
+}
+
+function editSpesa(cat,id,campo,val){
+  ensureIds();
+  const sp = CONFIG[cat].find(x=>x.id===id);
+  if(sp){ sp[campo]=val; saveConfig(); }
+}
+function rimuoviSpesa(cat,id){
+  ensureIds();
+  CONFIG[cat] = CONFIG[cat].filter(x=>x.id!==id);
+  saveConfig();
+}
+function aggiungiSpesa(cat){
+  ensureIds();
+  if(cat==='mensili'){
+    const nome=document.getElementById('new-mensile-nome').value.trim();
+    const importo=parseFloat(document.getElementById('new-mensile-importo').value);
+    const giorno=parseInt(document.getElementById('new-mensile-giorno').value);
+    if(!nome||!importo||!giorno) return;
+    CONFIG.mensili.push({id:uid(),nome,importo,giorno});
+    document.getElementById('new-mensile-nome').value='';
+    document.getElementById('new-mensile-importo').value='';
+    document.getElementById('new-mensile-giorno').value='';
+  } else {
+    const suf = cat==='trimestrali'?'trimestrale':'annuale';
+    const nome=document.getElementById(`new-${suf}-nome`).value.trim();
+    const importo=parseFloat(document.getElementById(`new-${suf}-importo`).value);
+    const mese=parseInt(document.getElementById(`new-${suf}-mese`).value);
+    const giorno=parseInt(document.getElementById(`new-${suf}-giorno`).value);
+    if(!nome||!importo||!mese||!giorno) return;
+    CONFIG[cat].push({id:uid(),nome,importo,mese,giorno});
+    document.getElementById(`new-${suf}-nome`).value='';
+    document.getElementById(`new-${suf}-importo`).value='';
+    document.getElementById(`new-${suf}-mese`).value='';
+    document.getElementById(`new-${suf}-giorno`).value='';
+  }
+  saveConfig();
+}
+function salvaPreavviso(){
+  CONFIG.preavviso = parseInt(document.getElementById('preavviso').value)||5;
+  saveConfig();
+}
+async function registraStipendio(){
+  const data = document.getElementById('in-stip-data').value;
+  const importo = parseFloat(document.getElementById('in-stip-importo').value);
+  if(!data||!importo) return;
+  const btn = document.getElementById('btn-registra');
+  btn.disabled = true;
+  ENTRATE.push({id:uid(),data,importo});
+  document.getElementById('in-stip-importo').value='';
+  await saveEntrate();
+  btn.disabled = false;
+}
+
+async function registraMovimento(){
+  const desc = document.getElementById('in-mov-desc').value.trim();
+  const importo = parseFloat(document.getElementById('in-mov-importo').value);
+  if(!desc||!importo) return;
+  const btn = document.getElementById('btn-mov');
+  btn.disabled = true;
+  MOVIMENTI.push({id:uid(), data: OGGI.toISOString().slice(0,10), desc, importo});
+  document.getElementById('in-mov-desc').value='';
+  document.getElementById('in-mov-importo').value='';
+  await saveMovimenti();
+  btn.disabled = false;
+}
+function rimuoviMovimento(id){
+  MOVIMENTI = MOVIMENTI.filter(m=>m.id!==id);
+  saveMovimenti();
+}
+
+function scaricaReport(){
+  const meseInput = document.getElementById('in-report-mese').value;
+  let anno, mese;
+  if(meseInput){
+    [anno, mese] = meseInput.split('-').map(Number);
+  } else {
+    anno = OGGI.getFullYear(); mese = OGGI.getMonth()+1;
+  }
+  const inMese = MOVIMENTI.filter(m=>{
+    const d = parseISO(m.data);
+    return d.getFullYear()===anno && (d.getMonth()+1)===mese;
+  }).sort((a,b)=>parseISO(a.data)-parseISO(b.data));
+
+  if(!inMese.length){
+    banner(`Nessuna spesa registrata per ${String(mese).padStart(2,'0')}/${anno}.`, 'err');
+    return;
+  }
+
+  let csv = 'Data;Descrizione;Importo\n';
+  inMese.forEach(m=>{
+    csv += `${m.data};${m.desc.replace(/;/g,',')};${m.importo.toFixed(2).replace('.',',')}\n`;
+  });
+  const totale = inMese.reduce((s,m)=>s+m.importo,0);
+  csv += `;Totale;${totale.toFixed(2).replace('.',',')}\n`;
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `spese-${anno}-${String(mese).padStart(2,'0')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-oggi').style.display = btn.dataset.tab==='oggi' ? 'block':'none';
+    document.getElementById('tab-config').style.display = btn.dataset.tab==='config' ? 'block':'none';
+  });
+});
+
+if(loadLocalGH()){
+  document.getElementById('app').style.display='block';
+  avvia();
+} else {
+  document.getElementById('setup').style.display='block';
+  document.getElementById('setup-owner').value = 'AdolfoBrusco';
+  document.getElementById('setup-repo').value = 'moneyRepo';
+}
+</script>
+</body>
+</html>
