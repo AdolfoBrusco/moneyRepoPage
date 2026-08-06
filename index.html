@@ -257,6 +257,12 @@ const OGGI = new Date(); OGGI.setHours(0,0,0,0);
 
 function fmt(n){ return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Math.round(n*100)/100); }
 function uid(){ return 'x'+Math.random().toString(36).slice(2,9); }
+function isoLocale(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const g = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${g}`;
+}
 function addMonths(date,n){ const d=new Date(date); d.setMonth(d.getMonth()+n); return d; }
 function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
 function cycleDates(mese, giorno, intervalMonths, today){
@@ -443,7 +449,7 @@ function renderDashboard(){
     totaleCcEl.textContent = '—';
   }
 
-  const oggiIso = OGGI.toISOString().slice(0,10);
+  const oggiIso = isoLocale(OGGI);
   const dataInput = document.getElementById('in-stip-data');
   if(!dataInput.value) dataInput.value = oggiIso;
 
@@ -673,7 +679,7 @@ async function registraMovimento(){
   if(!desc||!importo) return;
   const btn = document.getElementById('btn-mov');
   btn.disabled = true;
-  MOVIMENTI.push({id:uid(), data: OGGI.toISOString().slice(0,10), desc, importo});
+  MOVIMENTI.push({id:uid(), data: isoLocale(OGGI), desc, importo});
   document.getElementById('in-mov-desc').value='';
   document.getElementById('in-mov-importo').value='';
   await saveMovimenti();
