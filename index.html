@@ -14,6 +14,7 @@
     --teal:#3F7C6B; --teal-dim:#DCE9E3;
     --brass:#B08D57; --brass-dim:#EEE3D0;
     --brick:#B5462F; --brick-dim:#F3DCD5;
+    --viola:#6B5B95; --viola-dim:#E6E1F0;
     --ink-soft:#6A6355; --text-dark:#20241F;
   }
   *{box-sizing:border-box;}
@@ -50,6 +51,16 @@
   .strip .dot.mensile{background:var(--teal);} .strip .dot.periodico{background:var(--brass);}
   .list-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--paper-line);font-size:13px;}
   .list-item:last-child{border-bottom:none;}
+  .list-item.rimborsabile{background:var(--viola-dim);margin:0 -10px;padding:9px 10px;border-radius:6px;border-bottom:none;}
+  .li-rimborso-info{font-size:10px;color:var(--viola);font-weight:500;margin-top:2px;}
+  .btn-rimborsato{font-family:'Inter',sans-serif;font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid var(--viola);background:none;color:var(--viola);cursor:pointer;white-space:nowrap;}
+  .checkbox-row{display:flex;align-items:center;gap:8px;margin:10px 0;}
+  .checkbox-row input[type=checkbox]{width:16px;height:16px;}
+  .rimborso-fields{display:none;gap:12px;align-items:center;margin:10px 0;padding:10px;background:var(--viola-dim);border-radius:6px;}
+  .rimborso-fields.show{display:flex;flex-wrap:wrap;}
+  .slider-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:160px;}
+  .slider-wrap input[type=range]{flex:1;}
+  .slider-val{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-dark);min-width:38px;}
   .li-left{display:flex;flex-direction:column;}
   .li-name{color:var(--text-dark);font-weight:500;} .li-when{color:var(--ink-soft);font-size:11px;font-family:'IBM Plex Mono',monospace;}
   .li-amt{font-family:'IBM Plex Mono',monospace;color:var(--text-dark);font-weight:500;}
@@ -161,10 +172,26 @@
       <div class="card">
         <h2>Spese variabili di questo ciclo</h2>
         <p class="hint">Ogni spesa che registri qui erode il budget libero residuo mostrato sopra. Si azzerano da sole al prossimo stipendio.</p>
+        <p class="hint" id="totale-da-recuperare" style="color:var(--viola);font-weight:500;"></p>
         <div class="entry-form">
           <div><label>Cosa</label><input type="text" id="in-mov-desc" placeholder="es. Jeans, pizza, Amazon" style="width:180px;"></div>
           <div><label>Importo €</label><input type="number" id="in-mov-importo" step="0.01" placeholder="20"></div>
           <button class="action" id="btn-mov" onclick="registraMovimento()">Aggiungi</button>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="in-mov-rimborsabile" onchange="toggleRimborsoFields()">
+          <label style="margin:0;text-transform:none;font-size:13px;color:var(--text-dark);" for="in-mov-rimborsabile">Da rimborsare</label>
+        </div>
+        <div class="rimborso-fields" id="rimborso-fields">
+          <div class="slider-wrap">
+            <label style="margin:0;">%</label>
+            <input type="range" id="in-mov-percentuale" min="0" max="100" value="50" oninput="document.getElementById('slider-val').textContent=this.value+'%'">
+            <span class="slider-val" id="slider-val">50%</span>
+          </div>
+          <div style="flex:1;min-width:140px;">
+            <label>Da chi</label>
+            <input type="text" id="in-mov-da" placeholder="es. Moglie, conto comune" style="width:100%;">
+          </div>
         </div>
         <div id="mov-list" style="margin-top:14px;"></div>
       </div>
@@ -441,6 +468,11 @@ function renderDashboard(){
     ultimoStipEl.textContent = `Ultimo accredito registrato: ${fmt(ultima.importo)} il ${parseISO(ultima.data).toLocaleDateString('it-IT')}.`;
     renderMovimenti(movimentiCiclo);
     totaleCcEl.textContent = fmt(ccMin + residuo);
+
+    const pendenti = MOVIMENTI.filter(m => m.rimborsabile && !m.rimborsato);
+    const totRecuperare = pendenti.reduce((s,m)=>s + m.importo*(m.percentuale/100), 0);
+    const recEl = document.getElementById('totale-da-recuperare');
+    if(recEl) recEl.textContent = pendenti.length ? `${fmt(totRecuperare)} da recuperare (${pendenti.length} in sospeso)` : '';
   } else {
     spendibileEl.textContent = '—';
     spendibileSub.textContent = 'registra il primo accredito per calcolarlo';
@@ -469,17 +501,23 @@ function renderMovimenti(movimenti){
     return;
   }
   const ordinati = movimenti.slice().sort((a,b)=>parseISO(b.data)-parseISO(a.data));
-  el.innerHTML = ordinati.map(m=>`
-    <div class="list-item">
+  el.innerHTML = ordinati.map(m=>{
+    const inSospeso = m.rimborsabile && !m.rimborsato;
+    const importoRecupero = inSospeso ? m.importo * (m.percentuale/100) : 0;
+    return `
+    <div class="list-item ${inSospeso?'rimborsabile':''}">
       <div class="li-left">
         <span class="li-name">${m.desc}</span>
         <span class="li-when">${parseISO(m.data).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>
+        ${inSospeso ? `<span class="li-rimborso-info">${m.percentuale}% da ${m.da||'—'} · ${fmt(importoRecupero)} da recuperare</span>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <div class="li-amt">${fmt(m.importo)}</div>
+        ${inSospeso ? `<button class="btn-rimborsato" onclick="segnaRimborsato('${m.id}')">Segna rimborsato</button>` : ''}
         <button class="action ghost small" onclick="rimuoviMovimento('${m.id}')">×</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderStripAndProssimi(mensiliAttivi, periodici){
@@ -673,17 +711,49 @@ async function registraStipendio(){
   btn.disabled = false;
 }
 
+function toggleRimborsoFields(){
+  const show = document.getElementById('in-mov-rimborsabile').checked;
+  document.getElementById('rimborso-fields').classList.toggle('show', show);
+}
+
 async function registraMovimento(){
   const desc = document.getElementById('in-mov-desc').value.trim();
   const importo = parseFloat(document.getElementById('in-mov-importo').value);
   if(!desc||!importo) return;
+  const rimborsabile = document.getElementById('in-mov-rimborsabile').checked;
   const btn = document.getElementById('btn-mov');
   btn.disabled = true;
-  MOVIMENTI.push({id:uid(), data: isoLocale(OGGI), desc, importo});
+  const nuovo = {id:uid(), data: isoLocale(OGGI), desc, importo};
+  if(rimborsabile){
+    nuovo.rimborsabile = true;
+    nuovo.percentuale = parseInt(document.getElementById('in-mov-percentuale').value)||50;
+    nuovo.da = document.getElementById('in-mov-da').value.trim();
+    nuovo.rimborsato = false;
+  }
+  MOVIMENTI.push(nuovo);
   document.getElementById('in-mov-desc').value='';
   document.getElementById('in-mov-importo').value='';
+  document.getElementById('in-mov-rimborsabile').checked = false;
+  document.getElementById('in-mov-da').value='';
+  document.getElementById('in-mov-percentuale').value = 50;
+  document.getElementById('slider-val').textContent = '50%';
+  toggleRimborsoFields();
   await saveMovimenti();
   btn.disabled = false;
+}
+
+async function segnaRimborsato(id){
+  const item = MOVIMENTI.find(m=>m.id===id);
+  if(!item) return;
+  const importoRecupero = item.importo * (item.percentuale/100);
+  item.rimborsato = true;
+  MOVIMENTI.push({
+    id: uid(),
+    data: isoLocale(OGGI),
+    desc: `RIMBORSO: ${item.desc}`,
+    importo: -importoRecupero
+  });
+  await saveMovimenti();
 }
 function rimuoviMovimento(id){
   MOVIMENTI = MOVIMENTI.filter(m=>m.id!==id);
