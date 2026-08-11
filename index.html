@@ -615,7 +615,7 @@ function renderDashboard(){
       : `budget iniziale ${fmt(budgetIniziale)}, già speso ${fmt(speso)} da quando è arrivato lo stipendio`;
     ultimoStipEl.textContent = `Ultimo accredito registrato: ${fmt(ultima.importo)} il ${parseISO(ultima.data).toLocaleDateString('it-IT')}.`;
     renderMovimenti(movimentiCiclo);
-    totaleCcEl.textContent = fmt(ccMin + budgetIniziale - speso);
+    totaleCcEl.textContent = fmt(Math.max(ccMin, ccMin + budgetIniziale - speso));
 
     const pendenti = MOVIMENTI.filter(m => m.rimborsabile && !m.rimborsato);
     const totRecuperare = pendenti.reduce((s,m)=>s + m.importo*(m.percentuale/100), 0);
