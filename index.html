@@ -137,6 +137,7 @@
 
     <div class="tabs">
       <button class="tab-btn active" data-tab="oggi">Oggi</button>
+      <button class="tab-btn" data-tab="persone">Persone</button>
       <button class="tab-btn" data-tab="config">Configura</button>
     </div>
 
@@ -190,7 +191,7 @@
           </div>
           <div style="flex:1;min-width:140px;">
             <label>Da chi</label>
-            <input type="text" id="in-mov-da" placeholder="es. Moglie, conto comune" style="width:100%;">
+            <select id="in-mov-da" style="width:100%;"></select>
           </div>
         </div>
         <div id="mov-list" style="margin-top:14px;"></div>
@@ -220,6 +221,35 @@
         <h2>Questo mese</h2>
         <div class="strip" id="strip"></div>
         <div id="prossimi"></div>
+      </div>
+    </div>
+
+    <div id="tab-persone" style="display:none;">
+      <div class="card">
+        <h2>Saldo per persona</h2>
+        <p class="hint">Credito = quanto ti devono ancora (spese rimborsabili aperte). Debito = quanto devi ancora tu (debiti non saldati).</p>
+        <div id="saldo-persone"></div>
+      </div>
+
+      <div class="card">
+        <h2>Nuovo debito</h2>
+        <p class="hint">Per quando qualcun altro paga e tu gli devi una parte — non tocca il budget finché non lo salderai.</p>
+        <div class="entry-form">
+          <div><label>Persona</label><select id="in-deb-persona" style="width:140px;"></select></div>
+          <div><label>Cosa</label><input type="text" id="in-deb-desc" placeholder="es. Spesa, cena" style="width:160px;"></div>
+          <div><label>Importo €</label><input type="number" id="in-deb-importo" step="0.01"></div>
+          <button class="action" id="btn-deb" onclick="registraDebito()">Aggiungi</button>
+        </div>
+        <div id="deb-list" style="margin-top:14px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Rubrica</h2>
+        <div id="persone-list"></div>
+        <div class="add-row" style="grid-template-columns:1fr 80px;">
+          <div><label>Nuova persona</label><input type="text" id="new-persona-nome" placeholder="es. Moglie"></div>
+          <button class="action small" onclick="aggiungiPersona()">+</button>
+        </div>
       </div>
     </div>
 
@@ -277,8 +307,8 @@
 </div>
 
 <script>
-let CONFIG = null, ENTRATE = [], MOVIMENTI = [];
-let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null;
+let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [];
+let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null;
 let GH = { owner:'', repo:'', branch:'main', token:'' };
 const OGGI = new Date(); OGGI.setHours(0,0,0,0);
 
@@ -395,6 +425,12 @@ async function avvia(){
       m = { json: [], sha: null };
     }
     MOVIMENTI = m.json; MOVIMENTI_SHA = m.sha;
+    let p;
+    try{ p = await ghGet('persone.json'); }catch(e){ p = { json: [], sha: null }; }
+    PERSONE = p.json; PERSONE_SHA = p.sha;
+    let d;
+    try{ d = await ghGet('debiti.json'); }catch(e){ d = { json: [], sha: null }; }
+    DEBITI = d.json; DEBITI_SHA = d.sha;
     ['mensili','trimestrali','annuali'].forEach(cat=>{
       CONFIG[cat].forEach(sp=>{ if(!sp.id) sp.id = uid(); });
     });
@@ -404,7 +440,115 @@ async function avvia(){
   }
 }
 
-function render(){ renderDashboard(); renderConfig(); }
+function render(){ renderDashboard(); renderConfig(); renderPersone(); }
+
+function popolaSelectPersone(selectEl, includiNessuno){
+  if(!selectEl) return;
+  const attuale = selectEl.value;
+  selectEl.innerHTML = (includiNessuno ? '<option value="">—</option>' : '') +
+    PERSONE.map(p=>`<option value="${p.nome}">${p.nome}</option>`).join('');
+  if(attuale) selectEl.value = attuale;
+}
+
+function renderPersone(){
+  popolaSelectPersone(document.getElementById('in-mov-da'), true);
+  popolaSelectPersone(document.getElementById('in-deb-persona'), false);
+
+  const listEl = document.getElementById('persone-list');
+  if(listEl){
+    listEl.innerHTML = PERSONE.length ? PERSONE.map(p=>`
+      <div class="list-item">
+        <span class="li-name">${p.nome}</span>
+        <button class="action ghost small" onclick="rimuoviPersona('${p.id}')">×</button>
+      </div>`).join('') : '<p class="empty">Nessuna persona in rubrica. Aggiungine una qui sotto.</p>';
+  }
+
+  const debListEl = document.getElementById('deb-list');
+  if(debListEl){
+    const aperti = DEBITI.filter(d=>!d.saldato).sort((a,b)=>parseISO(b.data)-parseISO(a.data));
+    debListEl.innerHTML = aperti.length ? aperti.map(d=>`
+      <div class="list-item">
+        <div class="li-left">
+          <span class="li-name">${d.desc} <span class="badge brass">${d.persona}</span></span>
+          <span class="li-when">${parseISO(d.data).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="li-amt">${fmt(d.importo)}</div>
+          <button class="btn-rimborsato" onclick="segnaSaldato('${d.id}')">Segna saldato</button>
+          <button class="action ghost small" onclick="rimuoviDebito('${d.id}')">×</button>
+        </div>
+      </div>`).join('') : '<p class="empty">Nessun debito aperto.</p>';
+  }
+
+  const saldoEl = document.getElementById('saldo-persone');
+  if(saldoEl){
+    if(!PERSONE.length){
+      saldoEl.innerHTML = '<p class="empty">Aggiungi qualcuno in rubrica per vedere i saldi.</p>';
+    } else {
+      saldoEl.innerHTML = PERSONE.map(p=>{
+        const creditiAperti = MOVIMENTI.filter(m=>m.rimborsabile && !m.rimborsato && m.da===p.nome);
+        const credito = creditiAperti.reduce((s,m)=>s+m.importo*(m.percentuale/100),0);
+        const debitiAperti = DEBITI.filter(d=>!d.saldato && d.persona===p.nome);
+        const debito = debitiAperti.reduce((s,d)=>s+d.importo,0);
+        const netto = credito - debito;
+        const colore = netto > 0 ? 'var(--viola)' : (netto < 0 ? 'var(--brick)' : 'var(--ink-soft)');
+        const etichetta = netto > 0 ? 'ti deve' : (netto < 0 ? 'le devi' : 'pari');
+        return `
+        <div class="list-item">
+          <div class="li-left">
+            <span class="li-name">${p.nome}</span>
+            <span class="li-when">credito ${fmt(credito)} · debito ${fmt(debito)}</span>
+          </div>
+          <div class="li-amt" style="color:${colore};">${fmt(Math.abs(netto))} <span style="font-size:10px;font-weight:400;">(${etichetta})</span></div>
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+async function aggiungiPersona(){
+  const nome = document.getElementById('new-persona-nome').value.trim();
+  if(!nome) return;
+  if(PERSONE.some(p=>p.nome.toLowerCase()===nome.toLowerCase())) return;
+  PERSONE.push({id:uid(), nome});
+  document.getElementById('new-persona-nome').value='';
+  await savePersone();
+}
+function rimuoviPersona(id){
+  PERSONE = PERSONE.filter(p=>p.id!==id);
+  savePersone();
+}
+
+async function registraDebito(){
+  const persona = document.getElementById('in-deb-persona').value;
+  const desc = document.getElementById('in-deb-desc').value.trim();
+  const importo = parseFloat(document.getElementById('in-deb-importo').value);
+  if(!persona||!desc||!importo) return;
+  const btn = document.getElementById('btn-deb');
+  btn.disabled = true;
+  DEBITI.push({id:uid(), data:isoLocale(OGGI), desc, importo, persona, saldato:false});
+  document.getElementById('in-deb-desc').value='';
+  document.getElementById('in-deb-importo').value='';
+  await saveDebiti();
+  btn.disabled = false;
+}
+function rimuoviDebito(id){
+  DEBITI = DEBITI.filter(d=>d.id!==id);
+  saveDebiti();
+}
+async function segnaSaldato(id){
+  const item = DEBITI.find(d=>d.id===id);
+  if(!item) return;
+  item.saldato = true;
+  MOVIMENTI.push({
+    id: uid(),
+    data: isoLocale(OGGI),
+    desc: `DEBITO SALDATO: ${item.desc} (${item.persona})`,
+    importo: item.importo
+  });
+  await saveDebiti();
+  await saveMovimenti();
+}
 
 function renderDashboard(){
   const mensiliAttivi = CONFIG.mensili.filter(isAttiva);
@@ -462,12 +606,16 @@ function renderDashboard(){
     const budgetIniziale = ultima.importo - totMensili - quotaCD;
     const movimentiCiclo = MOVIMENTI.filter(m => parseISO(m.data) >= cicloInizio);
     const speso = movimentiCiclo.reduce((s,m)=>s+m.importo,0);
-    const residuo = budgetIniziale - speso;
+    const debitiAperti = DEBITI.filter(d=>!d.saldato);
+    const totDebiti = debitiAperti.reduce((s,d)=>s+d.importo,0);
+    const residuo = budgetIniziale - speso - totDebiti;
     spendibileEl.textContent = fmt(residuo);
-    spendibileSub.textContent = `budget iniziale ${fmt(budgetIniziale)}, già speso ${fmt(speso)} da quando è arrivato lo stipendio`;
+    spendibileSub.textContent = totDebiti > 0
+      ? `iniziale ${fmt(budgetIniziale)}, speso ${fmt(speso)}, meno ${fmt(totDebiti)} di debiti aperti`
+      : `budget iniziale ${fmt(budgetIniziale)}, già speso ${fmt(speso)} da quando è arrivato lo stipendio`;
     ultimoStipEl.textContent = `Ultimo accredito registrato: ${fmt(ultima.importo)} il ${parseISO(ultima.data).toLocaleDateString('it-IT')}.`;
     renderMovimenti(movimentiCiclo);
-    totaleCcEl.textContent = fmt(ccMin + residuo);
+    totaleCcEl.textContent = fmt(ccMin + budgetIniziale - speso);
 
     const pendenti = MOVIMENTI.filter(m => m.rimborsabile && !m.rimborsato);
     const totRecuperare = pendenti.reduce((s,m)=>s + m.importo*(m.percentuale/100), 0);
@@ -652,7 +800,29 @@ function saveMovimenti(){
     try{
       MOVIMENTI_SHA = await ghPutSafe('movimenti.json', MOVIMENTI, 'Aggiorna spese variabili');
       render();
-      banner('Spesa registrata.', 'ok');
+      banner('Registrato.', 'ok');
+    }catch(err){
+      banner('Errore nel salvataggio: '+err.message, 'err');
+    }
+  });
+}
+function savePersone(){
+  return withSaveLock(async ()=>{
+    try{
+      PERSONE_SHA = await ghPutSafe('persone.json', PERSONE, 'Aggiorna rubrica persone');
+      render();
+      banner('Rubrica aggiornata.', 'ok');
+    }catch(err){
+      banner('Errore nel salvataggio: '+err.message, 'err');
+    }
+  });
+}
+function saveDebiti(){
+  return withSaveLock(async ()=>{
+    try{
+      DEBITI_SHA = await ghPutSafe('debiti.json', DEBITI, 'Aggiorna debiti');
+      render();
+      banner('Debito aggiornato.', 'ok');
     }catch(err){
       banner('Errore nel salvataggio: '+err.message, 'err');
     }
@@ -799,6 +969,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-oggi').style.display = btn.dataset.tab==='oggi' ? 'block':'none';
+    document.getElementById('tab-persone').style.display = btn.dataset.tab==='persone' ? 'block':'none';
     document.getElementById('tab-config').style.display = btn.dataset.tab==='config' ? 'block':'none';
   });
 });
