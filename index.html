@@ -15,6 +15,7 @@
     --brass:#B08D57; --brass-dim:#EEE3D0;
     --brick:#B5462F; --brick-dim:#F3DCD5;
     --viola:#6B5B95; --viola-dim:#E6E1F0;
+    --verde:#3F7C4A; --verde-dim:#DCEDDD;
     --ink-soft:#6A6355; --text-dark:#20241F;
   }
   *{box-sizing:border-box;}
@@ -52,6 +53,8 @@
   .list-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--paper-line);font-size:13px;}
   .list-item:last-child{border-bottom:none;}
   .list-item.rimborsabile{background:var(--viola-dim);margin:0 -10px;padding:9px 10px;border-radius:6px;border-bottom:none;}
+  .list-item.quota-persona{background:var(--brass-dim);margin:0 -10px;padding:9px 10px;border-radius:6px;border-bottom:none;}
+  .list-item.credito-residuo-row{background:var(--verde-dim);margin:0 -10px;padding:9px 10px;border-radius:6px;border-bottom:none;}
   .li-rimborso-info{font-size:10px;color:var(--viola);font-weight:500;margin-top:2px;}
   .btn-rimborsato{font-family:'Inter',sans-serif;font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid var(--viola);background:none;color:var(--viola);cursor:pointer;white-space:nowrap;}
   .checkbox-row{display:flex;align-items:center;gap:8px;margin:10px 0;}
@@ -137,7 +140,7 @@
     <div id="banner-area"></div>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="oggi">Oggi</button>
+      <button class="tab-btn active" data-tab="oggi">Conto</button>
       <button class="tab-btn" data-tab="persone">Persone</button>
       <button class="tab-btn" data-tab="config">Configura</button>
     </div>
@@ -159,20 +162,22 @@
             <div class="stat-sub">accantonamento maturato</div>
           </div>
         </div>
-        <div class="stat free">
-          <div class="stat-label">Totale che dovrebbe esserci sul CC</div>
-          <div class="stat-val" id="totale-cc">—</div>
-          <div class="stat-sub">minimo riservato + budget libero residuo</div>
-        </div>
-        <div class="stat free" style="margin-top:12px;">
-          <div class="stat-label">Budget libero — residuo</div>
-          <div class="stat-val" id="spendibile">—</div>
-          <div class="stat-sub" id="spendibile-sub"></div>
+        <div class="stat-row">
+          <div class="stat free">
+            <div class="stat-label">Totale che dovrebbe esserci sul CC</div>
+            <div class="stat-val" id="totale-cc">—</div>
+            <div class="stat-sub">minimo riservato + budget libero residuo</div>
+          </div>
+          <div class="stat free">
+            <div class="stat-label">Budget libero — residuo</div>
+            <div class="stat-val" id="spendibile">—</div>
+            <div class="stat-sub" id="spendibile-sub"></div>
+          </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Spese variabili di questo ciclo</h2>
+        <h2 id="spese-card-title">Spese variabili di questo ciclo</h2>
         <p class="hint">Ogni spesa che registri qui erode il budget libero residuo mostrato sopra. Si azzerano da sole al prossimo stipendio.</p>
         <p class="hint" id="totale-da-recuperare" style="color:var(--viola);font-weight:500;"></p>
         <div class="entry-form">
@@ -211,6 +216,17 @@
       </div>
 
       <div class="card">
+        <h2>Nuovo credito</h2>
+        <p class="hint">Per crediti non legati a una tua spesa (es. un prestito, una scommessa) — non tocca il budget finché non lo incasserai.</p>
+        <div class="entry-form">
+          <div><label>Persona</label><select id="in-cred-persona" style="width:140px;"></select></div>
+          <div><label>Cosa</label><input type="text" id="in-cred-desc" placeholder="es. Prestito" style="width:160px;"></div>
+          <div><label>Importo €</label><input type="number" id="in-cred-importo" step="0.01"></div>
+          <button class="action" id="btn-cred" onclick="registraCreditoStandalone()">Aggiungi</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Registra accredito stipendio</h2>
         <p class="hint">Quando arriva lo stipendio sul CC, segnalo qui: viene scritto direttamente su entrate.json nel repo.</p>
         <div class="entry-form">
@@ -231,7 +247,7 @@
       </div>
 
       <div class="card">
-        <h2>Questo mese</h2>
+        <h2>Prossime spese</h2>
         <div class="strip" id="strip"></div>
         <div id="prossimi"></div>
       </div>
@@ -242,6 +258,12 @@
         <h2>Saldo per persona</h2>
         <p class="hint">Credito = quanto ti devono ancora (spese rimborsabili aperte). Debito = quanto devi ancora tu (debiti non saldati).</p>
         <div id="saldo-persone"></div>
+      </div>
+
+      <div class="card">
+        <h2>Storico crediti e debiti</h2>
+        <p class="hint">Tutte le voci, aperte e chiuse — così non perdi traccia di niente anche dopo aver saldato.</p>
+        <div id="storico-crediti-debiti"></div>
       </div>
 
       <div class="card">
@@ -308,7 +330,7 @@
 </div>
 
 <script>
-const APP_VERSION = "v1.14 · 2026-08-14";
+const APP_VERSION = "v1.17 · 14/08/2026";
 
 let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [], CREDITI = [];
 let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null, CREDITI_SHA = null;
@@ -466,6 +488,7 @@ function popolaSelectPersone(selectEl, includiNessuno){
 function renderPersone(){
   popolaSelectPersone(document.getElementById('in-mov-da'), true);
   popolaSelectPersone(document.getElementById('in-deb-persona'), false);
+  popolaSelectPersone(document.getElementById('in-cred-persona'), false);
 
   const listEl = document.getElementById('persone-list');
   if(listEl){
@@ -525,6 +548,54 @@ function renderPersone(){
       }).join('');
     }
   }
+
+  renderStoricoCreditiDebiti();
+}
+
+function renderStoricoCreditiDebiti(){
+  const el = document.getElementById('storico-crediti-debiti');
+  if(!el) return;
+  const righe = [
+    ...CREDITI.map(c=>({tipo:'Credito', persona:c.persona, desc:c.desc, importo:c.importo, data:c.data, stato:c.stato, id:c.id})),
+    ...DEBITI.map(d=>({tipo:'Debito', persona:d.persona, desc:d.desc, importo:d.importo, data:d.data, stato:d.saldato?'saldato':'aperto', id:d.id}))
+  ].sort((a,b)=>parseISO(b.data)-parseISO(a.data));
+
+  if(!righe.length){
+    el.innerHTML = '<p class="empty">Nessun credito o debito registrato.</p>';
+    return;
+  }
+
+  const statoLabel = {aperto:'Aperto', riscosso:'Riscosso', conciliato:'Conciliato', saldato:'Saldato'};
+  el.innerHTML = righe.map(r=>{
+    const aperto = r.stato === 'aperto';
+    const coloreTipo = r.tipo==='Credito' ? 'var(--viola)' : 'var(--brass)';
+    const azione = aperto
+      ? (r.tipo==='Credito'
+          ? `<button class="btn-rimborsato" onclick="segnaRimborsato('${r.id}')">Segna rimborsato</button>`
+          : `<button class="btn-rimborsato" onclick="segnaSaldato('${r.id}')">Segna saldato</button>`)
+      : `<span class="badge ${r.tipo==='Credito'?'brass':'teal'}">${statoLabel[r.stato]||r.stato}</span>`;
+    return `
+    <div class="list-item">
+      <div class="li-left">
+        <span class="li-name"><span style="color:${coloreTipo};font-weight:600;">${r.tipo}</span> · ${r.desc} <span class="badge teal">${r.persona}</span></span>
+        <span class="li-when">${parseISO(r.data).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}${aperto?'':' · '+(statoLabel[r.stato]||r.stato)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="li-amt">${fmt(r.importo)}</div>
+        ${azione}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function riduciOEliminaMovimento(movimentoId, importoDaTogliere){
+  const mv = MOVIMENTI.find(m=>m.id===movimentoId);
+  if(!mv) return false;
+  mv.importo -= importoDaTogliere;
+  if(mv.importo <= 0.005){
+    MOVIMENTI = MOVIMENTI.filter(m=>m.id!==movimentoId);
+  }
+  return true;
 }
 
 async function saldaConto(persona){
@@ -534,11 +605,15 @@ async function saldaConto(persona){
 
   creditiAperti.forEach(c=>{
     c.stato = 'riscosso';
-    MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`RIMBORSO: ${c.desc}`, importo:-c.importo});
+    if(c.movimentoId && riduciOEliminaMovimento(c.movimentoId, c.importo)){
+      // importo già tolto dalla spesa collegata, i soldi sono di nuovo spendibili
+    } else {
+      MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`RIMBORSO: ${c.desc}`, importo:-c.importo});
+    }
   });
   debitiAperti.forEach(d=>{
     d.saldato = true;
-    MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`DEBITO SALDATO: ${d.desc} (${d.persona})`, importo:d.importo});
+    MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`${d.desc} (acquistata da ${d.persona})`, importo:d.importo, tag:'quota-persona', persona:d.persona});
   });
 
   await saveCrediti();
@@ -555,17 +630,29 @@ async function saldoEffettivo(persona){
   const totDebito = debitiAperti.reduce((s,d)=>s+d.importo,0);
   const netto = totCredito - totDebito;
 
-  creditiAperti.forEach(c=> c.stato = 'conciliato');
-  debitiAperti.forEach(d=> d.saldato = true);
+  // scompone: la quota "mia" dei crediti collegati a una spesa si riduce direttamente sulla spesa
+  creditiAperti.forEach(c=>{
+    c.stato = 'conciliato';
+    if(c.movimentoId) riduciOEliminaMovimento(c.movimentoId, c.importo);
+  });
+
+  // i debiti diventano spese vere e visibili (la tua quota sulle spese di quella persona)
+  debitiAperti.forEach(d=>{
+    d.saldato = true;
+    MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`${d.desc} (acquistata da ${d.persona})`, importo:d.importo, tag:'quota-persona', persona:d.persona});
+  });
 
   if(netto > 0.005){
-    CREDITI.push({id:uid(), data:isoLocale(OGGI), desc:`Saldo residuo con ${persona}`, importo:netto, percentuale:100, persona, movimentoId:null, stato:'aperto'});
+    const nuovoMovId = uid();
+    MOVIMENTI.push({id:nuovoMovId, data:isoLocale(OGGI), desc:`Credito residuo con ${persona}`, importo:netto, tag:'credito-residuo', persona});
+    CREDITI.push({id:uid(), data:isoLocale(OGGI), desc:`Saldo residuo con ${persona}`, importo:netto, percentuale:null, persona, movimentoId:nuovoMovId, stato:'aperto'});
   } else if(netto < -0.005){
     DEBITI.push({id:uid(), data:isoLocale(OGGI), desc:`Saldo residuo con ${persona}`, importo:-netto, persona, saldato:false});
   }
 
   await saveCrediti();
   await saveDebiti();
+  await saveMovimenti();
 }
 
 async function aggiungiPersona(){
@@ -594,6 +681,20 @@ async function registraDebito(){
   await saveDebiti();
   btn.disabled = false;
 }
+
+async function registraCreditoStandalone(){
+  const persona = document.getElementById('in-cred-persona').value;
+  const desc = document.getElementById('in-cred-desc').value.trim();
+  const importo = parseFloat(document.getElementById('in-cred-importo').value);
+  if(!persona||!desc||!importo) return;
+  const btn = document.getElementById('btn-cred');
+  btn.disabled = true;
+  CREDITI.push({id:uid(), data:isoLocale(OGGI), desc, importo, percentuale:null, persona, movimentoId:null, stato:'aperto'});
+  document.getElementById('in-cred-desc').value='';
+  document.getElementById('in-cred-importo').value='';
+  await saveCrediti();
+  btn.disabled = false;
+}
 function rimuoviDebito(id){
   DEBITI = DEBITI.filter(d=>d.id!==id);
   saveDebiti();
@@ -605,8 +706,10 @@ async function segnaSaldato(id){
   MOVIMENTI.push({
     id: uid(),
     data: isoLocale(OGGI),
-    desc: `DEBITO SALDATO: ${item.desc} (${item.persona})`,
-    importo: item.importo
+    desc: `${item.desc} (acquistata da ${item.persona})`,
+    importo: item.importo,
+    tag: 'quota-persona',
+    persona: item.persona
   });
   await saveDebiti();
   await saveMovimenti();
@@ -664,17 +767,20 @@ function renderDashboard(){
   const ultimoStipEl = document.getElementById('ultimo-stipendio');
   const totaleCcEl = document.getElementById('totale-cc');
 
+  const titoloSpeseEl = document.getElementById('spese-card-title');
+  if(titoloSpeseEl){
+    titoloSpeseEl.textContent = ultima
+      ? `Spese dal ${parseISO(ultima.data).toLocaleDateString('it-IT',{day:'numeric',month:'long'})}`
+      : 'Spese variabili di questo ciclo';
+  }
+
   if(ultima){
     const budgetIniziale = ultima.importo - totMensili - quotaCD;
     const movimentiCiclo = MOVIMENTI.filter(m => parseISO(m.data) >= cicloInizio);
     const speso = movimentiCiclo.reduce((s,m)=>s+m.importo,0);
-    const debitiAperti = DEBITI.filter(d=>!d.saldato);
-    const totDebiti = debitiAperti.reduce((s,d)=>s+d.importo,0);
-    const residuo = budgetIniziale - speso - totDebiti;
+    const residuo = budgetIniziale - speso;
     spendibileEl.textContent = fmt(residuo);
-    spendibileSub.textContent = totDebiti > 0
-      ? `iniziale ${fmt(budgetIniziale)}, speso ${fmt(speso)}, meno ${fmt(totDebiti)} di debiti aperti`
-      : `budget iniziale ${fmt(budgetIniziale)}, già speso ${fmt(speso)} da quando è arrivato lo stipendio`;
+    spendibileSub.textContent = `budget iniziale ${fmt(budgetIniziale)}, già speso ${fmt(speso)} da quando è arrivato lo stipendio`;
     ultimoStipEl.textContent = `Ultimo accredito registrato: ${fmt(ultima.importo)} il ${parseISO(ultima.data).toLocaleDateString('it-IT')}.`;
     renderMovimenti(movimentiCiclo);
     totaleCcEl.textContent = fmt(Math.max(ccMin, ccMin + budgetIniziale - speso));
@@ -712,17 +818,20 @@ function renderMovimenti(movimenti){
   }
   const ordinati = movimenti.slice().sort((a,b)=>parseISO(b.data)-parseISO(a.data));
   el.innerHTML = ordinati.map(m=>{
-    const credito = CREDITI.find(c=>c.movimentoId===m.id && c.stato==='aperto');
+    const creditoAperto = CREDITI.find(c=>c.movimentoId===m.id && c.stato==='aperto');
+    const isCreditoResiduo = m.tag === 'credito-residuo';
+    const divisoCon = (m.tag === 'diviso-con' || !!creditoAperto) && !isCreditoResiduo;
+    const quotaPersona = m.tag === 'quota-persona';
     return `
-    <div class="list-item ${credito?'rimborsabile':''}">
+    <div class="list-item ${divisoCon?'rimborsabile':''} ${quotaPersona?'quota-persona':''} ${isCreditoResiduo?'credito-residuo-row':''}">
       <div class="li-left">
         <span class="li-name">${m.desc}</span>
         <span class="li-when">${parseISO(m.data).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>
-        ${credito ? `<span class="li-rimborso-info">${credito.percentuale}% da ${credito.persona||'—'} · ${fmt(credito.importo)} da recuperare</span>` : ''}
+        ${creditoAperto ? `<span class="li-rimborso-info">${creditoAperto.percentuale?creditoAperto.percentuale+'% ':''}da ${creditoAperto.persona||'—'} · ${fmt(creditoAperto.importo)} da recuperare</span>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <div class="li-amt">${fmt(m.importo)}</div>
-        ${credito ? `<button class="btn-rimborsato" onclick="segnaRimborsato('${credito.id}')">Segna rimborsato</button>` : ''}
+        ${creditoAperto ? `<button class="btn-rimborsato" onclick="segnaRimborsato('${creditoAperto.id}')">Segna rimborsato</button>` : ''}
         <button class="action ghost small" onclick="rimuoviMovimento('${m.id}')">×</button>
       </div>
     </div>`;
@@ -989,12 +1098,11 @@ async function registraMovimento(){
   btn.disabled = true;
 
   const nuovoId = uid();
-  MOVIMENTI.push({id:nuovoId, data: isoLocale(OGGI), desc, importo});
-
   let percentuale, persona;
   if(rimborsabile){
     percentuale = parseInt(document.getElementById('in-mov-percentuale').value)||50;
     persona = document.getElementById('in-mov-da').value;
+    MOVIMENTI.push({id:nuovoId, data: isoLocale(OGGI), desc: `${desc} (diviso con ${persona})`, importo, tag:'diviso-con', persona});
     CREDITI.push({
       id: uid(),
       data: isoLocale(OGGI),
@@ -1005,6 +1113,8 @@ async function registraMovimento(){
       movimentoId: nuovoId,
       stato: 'aperto'
     });
+  } else {
+    MOVIMENTI.push({id:nuovoId, data: isoLocale(OGGI), desc, importo});
   }
 
   document.getElementById('in-mov-desc').value='';
@@ -1023,12 +1133,14 @@ async function segnaRimborsato(creditoId){
   const credito = CREDITI.find(c=>c.id===creditoId);
   if(!credito) return;
   credito.stato = 'riscosso';
-  MOVIMENTI.push({
-    id: uid(),
-    data: isoLocale(OGGI),
-    desc: `RIMBORSO: ${credito.desc}`,
-    importo: -credito.importo
-  });
+  if(!credito.movimentoId || !riduciOEliminaMovimento(credito.movimentoId, credito.importo)){
+    MOVIMENTI.push({
+      id: uid(),
+      data: isoLocale(OGGI),
+      desc: `RIMBORSO: ${credito.desc}`,
+      importo: -credito.importo
+    });
+  }
   await saveCrediti();
   await saveMovimenti();
 }
