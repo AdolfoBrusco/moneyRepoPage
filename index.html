@@ -263,6 +263,10 @@
       <div class="card">
         <h2>Storico crediti e debiti</h2>
         <p class="hint">Tutte le voci, aperte e chiuse — così non perdi traccia di niente anche dopo aver saldato.</p>
+        <div class="entry-form" style="margin-bottom:12px;">
+          <div><label>Persona</label><select id="in-export-persona" style="width:140px;"><option value="">Tutte</option></select></div>
+          <button class="action small" onclick="scaricaStoricoPersona()">Scarica CSV</button>
+        </div>
         <div id="storico-crediti-debiti"></div>
       </div>
 
@@ -330,7 +334,7 @@
 </div>
 
 <script>
-const APP_VERSION = "v1.18 · 14/08/2026";
+const APP_VERSION = "v1.19 · 14/08/2026";
 
 let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [], CREDITI = [];
 let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null, CREDITI_SHA = null;
@@ -489,6 +493,12 @@ function renderPersone(){
   popolaSelectPersone(document.getElementById('in-mov-da'), true);
   popolaSelectPersone(document.getElementById('in-deb-persona'), false);
   popolaSelectPersone(document.getElementById('in-cred-persona'), false);
+  const exportSel = document.getElementById('in-export-persona');
+  if(exportSel){
+    const attuale = exportSel.value;
+    exportSel.innerHTML = '<option value="">Tutte</option>' + PERSONE.map(p=>`<option value="${p.nome}">${p.nome}</option>`).join('');
+    if(attuale) exportSel.value = attuale;
+  }
 
   const listEl = document.getElementById('persone-list');
   if(listEl){
@@ -1155,6 +1165,36 @@ async function rimuoviMovimento(id){
   } else {
     await saveMovimenti();
   }
+}
+
+function scaricaStoricoPersona(){
+  const personaFiltro = document.getElementById('in-export-persona').value;
+  const statoLabel = {aperto:'Aperto', riscosso:'Riscosso', conciliato:'Conciliato', saldato:'Saldato'};
+
+  let righe = [
+    ...CREDITI.map(c=>({tipo:'Credito', persona:c.persona, desc:c.desc, importo:c.importo, data:c.data, stato:c.stato})),
+    ...DEBITI.map(d=>({tipo:'Debito', persona:d.persona, desc:d.desc, importo:d.importo, data:d.data, stato:d.saldato?'saldato':'aperto'}))
+  ];
+  if(personaFiltro) righe = righe.filter(r=>r.persona===personaFiltro);
+  righe.sort((a,b)=>parseISO(a.data)-parseISO(b.data));
+
+  if(!righe.length){
+    banner(`Nessuna voce trovata${personaFiltro?' per '+personaFiltro:''}.`, 'err');
+    return;
+  }
+
+  let csv = 'Tipo;Persona;Descrizione;Importo;Data;Stato\n';
+  righe.forEach(r=>{
+    csv += `${r.tipo};${r.persona};${r.desc.replace(/;/g,',')};${r.importo.toFixed(2).replace('.',',')};${r.data};${statoLabel[r.stato]||r.stato}\n`;
+  });
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = personaFiltro ? `crediti-debiti-${personaFiltro}.csv` : 'crediti-debiti-tutti.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function scaricaReport(){
