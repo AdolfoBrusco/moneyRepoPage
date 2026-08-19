@@ -330,7 +330,7 @@
 </div>
 
 <script>
-const APP_VERSION = "v1.17 · 14/08/2026";
+const APP_VERSION = "v1.18 · 14/08/2026";
 
 let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [], CREDITI = [];
 let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null, CREDITI_SHA = null;
@@ -1144,9 +1144,17 @@ async function segnaRimborsato(creditoId){
   await saveCrediti();
   await saveMovimenti();
 }
-function rimuoviMovimento(id){
+async function rimuoviMovimento(id){
+  const creditoCollegato = CREDITI.find(c=>c.movimentoId===id);
   MOVIMENTI = MOVIMENTI.filter(m=>m.id!==id);
-  saveMovimenti();
+  if(creditoCollegato){
+    CREDITI = CREDITI.filter(c=>c.id!==creditoCollegato.id);
+    await saveMovimenti();
+    await saveCrediti();
+    banner('Spesa e credito collegato rimossi.', 'ok');
+  } else {
+    await saveMovimenti();
+  }
 }
 
 function scaricaReport(){
