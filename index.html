@@ -115,6 +115,7 @@
       <h1>Bilancio</h1>
       <div class="right">
         <span class="date" id="oggi-label"></span>
+        <span class="date" id="app-version" style="opacity:0.5;"></span>
         <button class="gear" onclick="toggleSettings()" title="Impostazioni">⚙</button>
       </div>
     </div>
@@ -307,6 +308,8 @@
 </div>
 
 <script>
+const APP_VERSION = "v1.14 · 2026-08-14";
+
 let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [], CREDITI = [];
 let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null, CREDITI_SHA = null;
 let GH = { owner:'', repo:'', branch:'main', token:'' };
@@ -413,6 +416,7 @@ function toggleSettings(){
 
 async function avvia(){
   document.getElementById('oggi-label').textContent = OGGI.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('app-version').textContent = APP_VERSION;
   try{
     const c = await ghGet('config.json');
     CONFIG = c.json; CONFIG_SHA = c.sha;
