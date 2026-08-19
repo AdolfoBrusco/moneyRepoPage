@@ -307,8 +307,8 @@
 </div>
 
 <script>
-let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [];
-let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null;
+let CONFIG = null, ENTRATE = [], MOVIMENTI = [], PERSONE = [], DEBITI = [], CREDITI = [];
+let CONFIG_SHA = null, ENTRATE_SHA = null, MOVIMENTI_SHA = null, PERSONE_SHA = null, DEBITI_SHA = null, CREDITI_SHA = null;
 let GH = { owner:'', repo:'', branch:'main', token:'' };
 const OGGI = new Date(); OGGI.setHours(0,0,0,0);
 
@@ -431,6 +431,15 @@ async function avvia(){
     let d;
     try{ d = await ghGet('debiti.json'); }catch(e){ d = { json: [], sha: null }; }
     DEBITI = d.json; DEBITI_SHA = d.sha;
+    let cr;
+    try{ cr = await ghGet('crediti.json'); }catch(e){ cr = { json: [], sha: null }; }
+    CREDITI = cr.json; CREDITI_SHA = cr.sha;
+
+    const serveMigrazione = migraCreditiSeServe();
+    if(serveMigrazione){
+      await saveMovimenti();
+      await saveCrediti();
+    }
     ['mensili','trimestrali','annuali'].forEach(cat=>{
       CONFIG[cat].forEach(sp=>{ if(!sp.id) sp.id = uid(); });
     });
@@ -486,24 +495,73 @@ function renderPersone(){
       saldoEl.innerHTML = '<p class="empty">Aggiungi qualcuno in rubrica per vedere i saldi.</p>';
     } else {
       saldoEl.innerHTML = PERSONE.map(p=>{
-        const creditiAperti = MOVIMENTI.filter(m=>m.rimborsabile && !m.rimborsato && m.da===p.nome);
-        const credito = creditiAperti.reduce((s,m)=>s+m.importo*(m.percentuale/100),0);
+        const creditiAperti = CREDITI.filter(c=>c.stato==='aperto' && c.persona===p.nome);
+        const credito = creditiAperti.reduce((s,c)=>s+c.importo,0);
         const debitiAperti = DEBITI.filter(d=>!d.saldato && d.persona===p.nome);
         const debito = debitiAperti.reduce((s,d)=>s+d.importo,0);
         const netto = credito - debito;
         const colore = netto > 0 ? 'var(--viola)' : (netto < 0 ? 'var(--brick)' : 'var(--ink-soft)');
         const etichetta = netto > 0 ? 'ti deve' : (netto < 0 ? 'le devi' : 'pari');
+        const haAperti = creditiAperti.length > 0 || debitiAperti.length > 0;
         return `
-        <div class="list-item">
-          <div class="li-left">
-            <span class="li-name">${p.nome}</span>
-            <span class="li-when">credito ${fmt(credito)} · debito ${fmt(debito)}</span>
+        <div class="list-item" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div class="li-left">
+              <span class="li-name">${p.nome}</span>
+              <span class="li-when">credito ${fmt(credito)} · debito ${fmt(debito)}</span>
+            </div>
+            <div class="li-amt" style="color:${colore};">${fmt(Math.abs(netto))} <span style="font-size:10px;font-weight:400;">(${etichetta})</span></div>
           </div>
-          <div class="li-amt" style="color:${colore};">${fmt(Math.abs(netto))} <span style="font-size:10px;font-weight:400;">(${etichetta})</span></div>
+          ${haAperti ? `
+          <div style="display:flex;gap:8px;">
+            <button class="btn-rimborsato" onclick="saldaConto('${p.nome}')" title="Contanti/bonifico già passati di mano">Salda (contanti ricevuti/dati)</button>
+            <button class="action ghost small" onclick="saldoEffettivo('${p.nome}')" title="Nessun contante passato, solo riordino dei conti">Saldo effettivo</button>
+          </div>` : ''}
         </div>`;
       }).join('');
     }
   }
+}
+
+async function saldaConto(persona){
+  const creditiAperti = CREDITI.filter(c=>c.stato==='aperto' && c.persona===persona);
+  const debitiAperti = DEBITI.filter(d=>!d.saldato && d.persona===persona);
+  if(!creditiAperti.length && !debitiAperti.length) return;
+
+  creditiAperti.forEach(c=>{
+    c.stato = 'riscosso';
+    MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`RIMBORSO: ${c.desc}`, importo:-c.importo});
+  });
+  debitiAperti.forEach(d=>{
+    d.saldato = true;
+    MOVIMENTI.push({id:uid(), data:isoLocale(OGGI), desc:`DEBITO SALDATO: ${d.desc} (${d.persona})`, importo:d.importo});
+  });
+
+  await saveCrediti();
+  await saveDebiti();
+  await saveMovimenti();
+}
+
+async function saldoEffettivo(persona){
+  const creditiAperti = CREDITI.filter(c=>c.stato==='aperto' && c.persona===persona);
+  const debitiAperti = DEBITI.filter(d=>!d.saldato && d.persona===persona);
+  if(!creditiAperti.length && !debitiAperti.length) return;
+
+  const totCredito = creditiAperti.reduce((s,c)=>s+c.importo,0);
+  const totDebito = debitiAperti.reduce((s,d)=>s+d.importo,0);
+  const netto = totCredito - totDebito;
+
+  creditiAperti.forEach(c=> c.stato = 'conciliato');
+  debitiAperti.forEach(d=> d.saldato = true);
+
+  if(netto > 0.005){
+    CREDITI.push({id:uid(), data:isoLocale(OGGI), desc:`Saldo residuo con ${persona}`, importo:netto, percentuale:100, persona, movimentoId:null, stato:'aperto'});
+  } else if(netto < -0.005){
+    DEBITI.push({id:uid(), data:isoLocale(OGGI), desc:`Saldo residuo con ${persona}`, importo:-netto, persona, saldato:false});
+  }
+
+  await saveCrediti();
+  await saveDebiti();
 }
 
 async function aggiungiPersona(){
@@ -617,8 +675,8 @@ function renderDashboard(){
     renderMovimenti(movimentiCiclo);
     totaleCcEl.textContent = fmt(Math.max(ccMin, ccMin + budgetIniziale - speso));
 
-    const pendenti = MOVIMENTI.filter(m => m.rimborsabile && !m.rimborsato);
-    const totRecuperare = pendenti.reduce((s,m)=>s + m.importo*(m.percentuale/100), 0);
+    const pendenti = CREDITI.filter(c => c.stato === 'aperto');
+    const totRecuperare = pendenti.reduce((s,c)=>s + c.importo, 0);
     const recEl = document.getElementById('totale-da-recuperare');
     if(recEl) recEl.textContent = pendenti.length ? `${fmt(totRecuperare)} da recuperare (${pendenti.length} in sospeso)` : '';
   } else {
@@ -650,18 +708,17 @@ function renderMovimenti(movimenti){
   }
   const ordinati = movimenti.slice().sort((a,b)=>parseISO(b.data)-parseISO(a.data));
   el.innerHTML = ordinati.map(m=>{
-    const inSospeso = m.rimborsabile && !m.rimborsato;
-    const importoRecupero = inSospeso ? m.importo * (m.percentuale/100) : 0;
+    const credito = CREDITI.find(c=>c.movimentoId===m.id && c.stato==='aperto');
     return `
-    <div class="list-item ${inSospeso?'rimborsabile':''}">
+    <div class="list-item ${credito?'rimborsabile':''}">
       <div class="li-left">
         <span class="li-name">${m.desc}</span>
         <span class="li-when">${parseISO(m.data).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>
-        ${inSospeso ? `<span class="li-rimborso-info">${m.percentuale}% da ${m.da||'—'} · ${fmt(importoRecupero)} da recuperare</span>` : ''}
+        ${credito ? `<span class="li-rimborso-info">${credito.percentuale}% da ${credito.persona||'—'} · ${fmt(credito.importo)} da recuperare</span>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <div class="li-amt">${fmt(m.importo)}</div>
-        ${inSospeso ? `<button class="btn-rimborsato" onclick="segnaRimborsato('${m.id}')">Segna rimborsato</button>` : ''}
+        ${credito ? `<button class="btn-rimborsato" onclick="segnaRimborsato('${credito.id}')">Segna rimborsato</button>` : ''}
         <button class="action ghost small" onclick="rimuoviMovimento('${m.id}')">×</button>
       </div>
     </div>`;
@@ -817,12 +874,45 @@ function savePersone(){
     }
   });
 }
+function migraCreditiSeServe(){
+  const daMigrare = MOVIMENTI.filter(m => m.rimborsabile !== undefined);
+  if(!daMigrare.length) return false;
+  daMigrare.forEach(m=>{
+    CREDITI.push({
+      id: uid(),
+      data: m.data,
+      desc: m.desc,
+      importo: m.importo * (m.percentuale/100),
+      percentuale: m.percentuale,
+      persona: m.da || '',
+      movimentoId: m.id,
+      stato: m.rimborsato ? 'riscosso' : 'aperto'
+    });
+    delete m.rimborsabile;
+    delete m.percentuale;
+    delete m.da;
+    delete m.rimborsato;
+  });
+  return true;
+}
+
 function saveDebiti(){
   return withSaveLock(async ()=>{
     try{
       DEBITI_SHA = await ghPutSafe('debiti.json', DEBITI, 'Aggiorna debiti');
       render();
       banner('Debito aggiornato.', 'ok');
+    }catch(err){
+      banner('Errore nel salvataggio: '+err.message, 'err');
+    }
+  });
+}
+function saveCrediti(){
+  return withSaveLock(async ()=>{
+    try{
+      CREDITI_SHA = await ghPutSafe('crediti.json', CREDITI, 'Aggiorna crediti');
+      render();
+      banner('Credito aggiornato.', 'ok');
     }catch(err){
       banner('Errore nel salvataggio: '+err.message, 'err');
     }
@@ -893,36 +983,49 @@ async function registraMovimento(){
   const rimborsabile = document.getElementById('in-mov-rimborsabile').checked;
   const btn = document.getElementById('btn-mov');
   btn.disabled = true;
-  const nuovo = {id:uid(), data: isoLocale(OGGI), desc, importo};
+
+  const nuovoId = uid();
+  MOVIMENTI.push({id:nuovoId, data: isoLocale(OGGI), desc, importo});
+
+  let percentuale, persona;
   if(rimborsabile){
-    nuovo.rimborsabile = true;
-    nuovo.percentuale = parseInt(document.getElementById('in-mov-percentuale').value)||50;
-    nuovo.da = document.getElementById('in-mov-da').value.trim();
-    nuovo.rimborsato = false;
+    percentuale = parseInt(document.getElementById('in-mov-percentuale').value)||50;
+    persona = document.getElementById('in-mov-da').value;
+    CREDITI.push({
+      id: uid(),
+      data: isoLocale(OGGI),
+      desc,
+      importo: importo * (percentuale/100),
+      percentuale,
+      persona,
+      movimentoId: nuovoId,
+      stato: 'aperto'
+    });
   }
-  MOVIMENTI.push(nuovo);
+
   document.getElementById('in-mov-desc').value='';
   document.getElementById('in-mov-importo').value='';
   document.getElementById('in-mov-rimborsabile').checked = false;
-  document.getElementById('in-mov-da').value='';
   document.getElementById('in-mov-percentuale').value = 50;
   document.getElementById('slider-val').textContent = '50%';
   toggleRimborsoFields();
+
   await saveMovimenti();
+  if(rimborsabile) await saveCrediti();
   btn.disabled = false;
 }
 
-async function segnaRimborsato(id){
-  const item = MOVIMENTI.find(m=>m.id===id);
-  if(!item) return;
-  const importoRecupero = item.importo * (item.percentuale/100);
-  item.rimborsato = true;
+async function segnaRimborsato(creditoId){
+  const credito = CREDITI.find(c=>c.id===creditoId);
+  if(!credito) return;
+  credito.stato = 'riscosso';
   MOVIMENTI.push({
     id: uid(),
     data: isoLocale(OGGI),
-    desc: `RIMBORSO: ${item.desc}`,
-    importo: -importoRecupero
+    desc: `RIMBORSO: ${credito.desc}`,
+    importo: -credito.importo
   });
+  await saveCrediti();
   await saveMovimenti();
 }
 function rimuoviMovimento(id){
